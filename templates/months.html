@@ -52,10 +52,10 @@
   </div>
   <div class="actions">
     <a class="btn" href="{{ url_for('download_register', eid=er.id, mid=wm.id) }}">Wage register (Excel)</a>
-    {% if esic_count %}
-    <a class="btn" id="esicbtn" href="{{ url_for('download_esic', eid=er.id, mid=wm.id) }}" title="ESIC monthly contribution file for {{ esic_count }} insured persons, in ESIC's MC template">ESIC MC file (.xls)</a>
-    {% endif %}
     {% if me.role == 'admin' %}
+      {% if esic_count %}
+      <a class="btn" id="esicbtn" href="{{ url_for('download_esic', eid=er.id, mid=wm.id) }}" title="ESIC monthly contribution file for {{ esic_count }} insured persons, in ESIC's MC template">ESIC MC file (.xls)</a>
+      {% endif %}
       <a class="btn primary" id="genbtn" href="{{ url_for('download_ecr', eid=er.id, mid=wm.id) }}"{% if pending %} onclick="return confirm('{{ pending }} employee(s) are not entered yet. Generate the ECR anyway?')"{% endif %}>Generate ECR</a>
       {% if wm.status != 'draft' %}
       <form method="post" action="{{ url_for('month_status', eid=er.id, mid=wm.id) }}"><input type="hidden" name="csrf" value="{{ csrf }}"><button name="action" value="reopen">Reopen for employer</button></form>

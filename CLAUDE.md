@@ -20,7 +20,8 @@ client's monthly 3-sheet salary Excel (salary statement / UAN list / IP list).
     python seed.py "Client" client client123 salary.xlsx ORBBS0012345000
 
 ## Roles and workflow
-- admin: creates employers (+ their login), edits ceilings, can always edit any month, Generate ECR, Reopen for employer.
+- admin: creates employers (+ their login), edits ceilings, can always edit any month, Generate ECR, ESIC MC file, Reopen for employer. Employers list has a "Returns" column: last 6 sent months per establishment with ECR and ESIC MC download links (ESIC only when the month has IP numbers).
+- ECR and ESIC MC files are admin-only (routes return 403 for employers; buttons hidden). Employer can still download the wage register.
 - employer: sees only own data. Month timeline (bar height = headcount; amber draft, blue submitted, green ECR generated, grey hatched = not opened, click to open). Opening a month copies active employees with last month's pay, total days from last month (default 30), LOP 0.
 - Per-employee entry panel: actual basic, total days, LOP days, house rent, laundry → everything else computed live. "Save and next" goes to the next not-yet-entered employee. New employee can be created from the month. `WageEntry.entered` tracks progress; "Send to EPF office" is refused while any row is not entered, then the month locks for the employer.
 - Editing after ECR generation flips status back to submitted (regenerate needed).

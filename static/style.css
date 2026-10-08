@@ -127,6 +127,8 @@ table { border-collapse: collapse; width: 100%; }
 .flag.nouan { background: #F6E3E0; color: var(--bad); }
 .pill { font-size: .8rem; padding: .1rem .5rem; border-radius: 999px; background: #EEF1F3; }
 .pill.submitted { background: #E1ECF6; color: var(--sent); font-weight: 600; }
+.pill.generated { background: #E3F1E8; color: var(--done); }
+.returns { white-space: nowrap; line-height: 1.9; }
 
 .savebar { position: sticky; bottom: 0; z-index: 5; display: flex; gap: 1rem; align-items: center; flex-wrap: wrap; padding: .7rem 0; background: var(--paper); border-top: 1px solid var(--line); margin-top: .5rem; }
 .savebar form { margin: 0; }

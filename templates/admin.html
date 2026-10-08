@@ -3,7 +3,7 @@
 <h1>Employers</h1>
 {% if employers %}
 <table class="list">
-  <thead><tr><th>Establishment</th><th>EPF code</th><th>ESIC code</th><th>Waiting for ECR</th><th></th></tr></thead>
+  <thead><tr><th>Establishment</th><th>EPF code</th><th>ESIC code</th><th>Waiting for ECR</th><th>Returns (ECR / ESIC)</th><th></th></tr></thead>
   <tbody>
   {% for e in employers %}
   <tr>
@@ -11,6 +11,15 @@
     <td>{{ e.est_code or '—' }}</td>
     <td>{{ e.esic_code or '—' }}</td>
     <td>{% if pending[e.id] %}<span class="pill submitted">{{ pending[e.id] }} month{{ 's' if pending[e.id] > 1 }}</span>{% else %}<span class="muted">None</span>{% endif %}</td>
+    <td>
+      {% for wm in returns[e.id] %}
+      <div class="returns">
+        <a href="{{ url_for('months', eid=e.id, m=wm.id) }}"><span class="pill {{ wm.status }}">{{ wm.label }}</span></a>
+        <a href="{{ url_for('download_ecr', eid=e.id, mid=wm.id) }}">ECR</a>
+        {% if esic.get(wm.id) %}· <a href="{{ url_for('download_esic', eid=e.id, mid=wm.id) }}">ESIC MC</a>{% endif %}
+      </div>
+      {% else %}<span class="muted">No month sent yet</span>{% endfor %}
+    </td>
     <td class="right">
       <a href="{{ url_for('employees', eid=e.id) }}">Employees</a>
       <details class="inline"><summary>Reset password</summary>

@@ -306,10 +306,17 @@ def change_password():
 @login_required("admin")
 def admin_home():
     employers = Employer.query.order_by(Employer.name).all()
-    pending = {}
+    pending, returns = {}, {}
     for e in employers:
         pending[e.id] = WageMonth.query.filter_by(employer_id=e.id, status="submitted").count()
-    return render_template("admin.html", employers=employers, pending=pending)
+        # months the employer has sent: ECR and ESIC MC files are prepared here, never by the employer
+        returns[e.id] = (WageMonth.query.filter(WageMonth.employer_id == e.id, WageMonth.status != "draft")
+                         .order_by(WageMonth.year.desc(), WageMonth.month.desc()).limit(6).all())
+    mids = [wm.id for wms in returns.values() for wm in wms] or [0]
+    esic = dict(db.session.query(WageEntry.wage_month_id, db.func.count(WageEntry.id)).join(Employee)
+                .filter(WageEntry.wage_month_id.in_(mids), Employee.ip_no.isnot(None), Employee.ip_no != "")
+                .group_by(WageEntry.wage_month_id).all())
+    return render_template("admin.html", employers=employers, pending=pending, returns=returns, esic=esic)
 
 
 @app.route("/admin/employer", methods=["POST"])
@@ -628,7 +635,7 @@ def download_ecr(eid, mid):
 
 
 @app.route("/e/<int:eid>/m/<int:mid>/esic")
-@login_required()
+@login_required("admin")
 def download_esic(eid, mid):
     """Fill ESIC's own MC template (MC_Template11.xls) for the month, keeping its sheets and formatting."""
     import xlrd
