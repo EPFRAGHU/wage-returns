@@ -1,8 +1,13 @@
+.git
+.gitignore
+.dockerignore
+.claude/
+.venv/
 __pycache__/
+*.pyc
 data/
 *.db
 .env
-.venv/
 
 # client workbooks (keep the official ESIC template)
 *.xlsx
