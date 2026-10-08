@@ -761,7 +761,7 @@ REPORT_VIEWS = {
     "esic": ("ESIC", ["ip_no", "paid_days", "esic_wages", "esic_ee", "esic_er", "esic_total"], "ip_no"),
     "custom": ("Choose headings", [], None),
 }
-REPORT_GROUPS = {"month": "Each employee, month by month", "employee": "Each employee, one after another",
+REPORT_GROUPS = {"month": "Month by month", "employee": "Employee by employee",
                  "emp_total": "Total per employee", "month_total": "Total per month"}
 
 

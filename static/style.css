@@ -137,7 +137,7 @@ table { border-collapse: collapse; width: 100%; }
 .pickcols label { font-weight: 500; }
 .quick { font-size: .88rem; color: var(--ink-2); margin-left: auto; }
 .report .mon, .report .sl { text-align: left; color: var(--ink-2); }
-.report tr.sub td { font-weight: 700; background: #F2F6FA; border-bottom: 2px solid var(--line); }
+.report tr.rep-sub td { font-weight: 700; background: #F2F6FA; border-bottom: 2px solid var(--line); }
 .savebar { position: sticky; bottom: 0; z-index: 5; display: flex; gap: 1rem; align-items: center; flex-wrap: wrap; padding: .7rem 0; background: var(--paper); border-top: 1px solid var(--line); margin-top: .5rem; }
 .savebar form { margin: 0; }
 #savestate.pending { color: var(--draft); font-weight: 600; }

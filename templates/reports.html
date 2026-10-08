@@ -54,7 +54,7 @@
   {% set ns = namespace(sl=0) %}
   {% for ln in rep.lines %}
     {% if ln.kind == 'row' %}{% set ns.sl = ns.sl + 1 %}{% endif %}
-    <tr class="{{ ln.kind }}">
+    <tr class="rep-{{ ln.kind }}">
       <td class="sl">{{ ns.sl if ln.kind == 'row' }}</td><td class="mon">{{ ln.month }}</td><td class="name">{{ ln.name }}</td>
       {% for v in ln.vals %}<td{{ ' class=neg' if v is number and v < 0 }}>{{ "{:,}".format(v) if v is number else v }}</td>{% endfor %}
     </tr>
