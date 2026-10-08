@@ -129,6 +129,7 @@ table { border-collapse: collapse; width: 100%; }
 .pill.submitted { background: #E1ECF6; color: var(--sent); font-weight: 600; }
 .pill.generated { background: #E3F1E8; color: var(--done); }
 .returns { white-space: nowrap; line-height: 1.9; }
+.inline-del { display: inline; margin: 0; }
 
 /* ───── reports ───── */
 .repform { background: var(--sheet); border: 1px solid var(--line); border-radius: 10px; padding: 1rem 1.2rem; }

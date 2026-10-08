@@ -917,6 +917,27 @@ def employees(eid):
     return render_template("employees.html", er=er, emps=emps, ages=ages)
 
 
+@app.route("/e/<int:eid>/employees/<int:emp_id>/delete", methods=["POST"])
+@login_required()
+def delete_employee(eid, emp_id):
+    """Remove an employee added by mistake. Refused once they are in a month sent to the EPF office."""
+    employer_or_404(eid)
+    emp = db.session.get(Employee, emp_id)
+    if not emp or emp.employer_id != eid:
+        abort(404)
+    sent = (WageMonth.query.join(WageEntry, WageEntry.wage_month_id == WageMonth.id)
+            .filter(WageEntry.employee_id == emp.id, WageMonth.status != "draft")
+            .order_by(WageMonth.year, WageMonth.month).all())
+    if sent:
+        flash(f"{emp.name} is in {', '.join(w.label for w in sent)}, already sent. Mark them as left instead (Edit, untick Working).")
+        return redirect(url_for("employees", eid=eid))
+    WageEntry.query.filter_by(employee_id=emp.id).delete()
+    db.session.delete(emp)
+    db.session.commit()
+    flash(f"{emp.name} deleted.")
+    return redirect(url_for("employees", eid=eid))
+
+
 def upsert_employee(eid, name, uan=None, ip=None, dob=None, doj=None, basic=None, hra=None, laundry=None):
     name = clean_name(name)
     q = Employee.query.filter_by(employer_id=eid)
@@ -964,7 +985,8 @@ def import_employees(eid):
     for r in ws.iter_rows(min_row=header_row + 1, values_only=True):
         get = lambda k: r[cols[k]] if k in cols and cols[k] < len(r) else None
         nm = get("name")
-        if not nm or str(nm).strip().upper() == "TOTAL":
+        # skip blank, TOTAL and column-number rows (1, 2, 3 … under the headings)
+        if not nm or str(nm).strip().upper() in ("TOTAL", "NAME") or not re.search(r"[A-Za-z]", str(nm)):
             continue
         upsert_employee(eid, nm, digits(get("uan")), digits(get("ip")), parse_date(get("dob")), parse_date(get("doj")),
                         to_int(get("basic"), None) if get("basic") is not None else None,

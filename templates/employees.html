@@ -23,7 +23,10 @@
     <td>{% if e.dob %}{{ e.dob.strftime('%d/%m/%Y') }}{% else %}<span class="flag nodob">Missing</span>{% endif %}</td>
     <td class="num">{% if ages[e.id] is not none %}{{ ages[e.id] }}{% if ages[e.id] >= 58 %} <span class="flag over58">No EPS</span>{% endif %}{% endif %}</td>
     <td class="num">{{ e.actual_basic }}</td><td class="num">{{ e.hra }}</td><td class="num">{{ e.laundry }}</td>
-    <td class="right"><button type="button" class="link" data-edit='{{ {"id": e.id, "name": e.name, "uan": e.uan or "", "ip_no": e.ip_no or "", "dob": e.dob.isoformat() if e.dob else "", "doj": e.doj.isoformat() if e.doj else "", "actual_basic": e.actual_basic, "hra": e.hra, "laundry": e.laundry, "active": e.active}|tojson }}'>Edit</button></td>
+    <td class="right"><button type="button" class="link" data-edit='{{ {"id": e.id, "name": e.name, "uan": e.uan or "", "ip_no": e.ip_no or "", "dob": e.dob.isoformat() if e.dob else "", "doj": e.doj.isoformat() if e.doj else "", "actual_basic": e.actual_basic, "hra": e.hra, "laundry": e.laundry, "active": e.active}|tojson }}'>Edit</button>
+      <form method="post" action="{{ url_for('delete_employee', eid=er.id, emp_id=e.id) }}" class="inline-del" data-msg="Delete {{ e.name }} and their entries in months still being filled? This cannot be undone." onsubmit="return confirm(this.dataset.msg)">
+        <input type="hidden" name="csrf" value="{{ csrf }}"><button class="link danger">Delete</button>
+      </form></td>
   </tr>
   {% else %}
   <tr><td colspan="9" class="empty">No employees yet. Add one below or import the employee Excel.</td></tr>

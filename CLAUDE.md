@@ -38,7 +38,11 @@ client's monthly 3-sheet salary Excel (salary statement / UAN list / IP list).
 - ECR 2.0 line: `UAN#~#NAME#~#GROSS#~#EPF#~#EPS#~#EDLI#~#EE#~#EPS#~#ER#~#NCP#~#0`, UTF-8, `\n`; employees without UAN are skipped and flagged.
 - ESIC MC file: IP no, name (A–Z and space only), paid days, ESIC wages, reason code, last working day DD/MM/YYYY; all cells Text, .xls. Reason/LWD only when paid days = 0; codes 2,3,4,5,6,10 require LWD.
 
+- Employees page: Delete (employer or admin) removes an employee and their entries in draft months; refused if they appear in any submitted/generated month (mark as left instead, or reopen the month first).
+
 ## Client workbook import
+Both imports skip rows whose name has no letters (blank, TOTAL, and the 1, 2, 3 … column-number row many salary sheets have under the headings — that row once created an employee named "2").
+
 Sheet1 columns are found by heading (NAME, ACTUAL BASIC, TOTAL DAYS, LOP, HOUSE, LAUNDRY, optional DATE OF BIRTH / UAN / IP NO); month from A1 text like "SEPT-2026". UAN (Sheet2) and IP (Sheet3) matched to names with difflib (cutoff 0.85) after stripping Mr./Mrs. prefixes.
 
 ## Open questions / ideas
