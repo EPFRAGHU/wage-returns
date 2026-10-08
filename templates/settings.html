@@ -1,0 +1,28 @@
+{% extends "base.html" %}{% block title %}Wage ceiling{% endblock %}
+{% block body %}
+<section class="narrow">
+<h1>EPS / EDLI wage ceiling</h1>
+<p class="muted">EPS and EDLI wages are capped at the ceiling for the wage month. EPF wages stay at the full basic, as in the client's sheet. When the ceiling changes in the middle of a month, that month's ceiling is pro-rated by calendar days.</p>
+<table class="list">
+  <thead><tr><th>Effective from</th><th class="num">Ceiling</th><th></th></tr></thead>
+  <tbody>
+  {% for c in ceilings %}{% set d = norm(c.effective_ym) %}
+  <tr><td>{{ d[8:] }}/{{ d[5:7] }}/{{ d[:4] }}</td><td class="num">₹{{ "{:,}".format(c.amount) }}</td>
+      <td class="right"><a href="?delete={{ c.id }}" onclick="return confirm('Remove this ceiling?')">Remove</a></td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+<h2>Ceiling used per wage month</h2>
+<table class="list">
+  <tbody>{% for y, m, note in preview %}<tr><td>{{ MONTHS[m-1] }}-{{ y }}</td><td>{{ note }}</td></tr>{% endfor %}</tbody>
+</table>
+<h2>Add or change a ceiling</h2>
+<p class="muted">To use ₹25,000 for the whole of Sep-2026 instead of pro-rata, change the date to 01/09/2026.</p>
+<form method="post" class="row">
+  <input type="hidden" name="csrf" value="{{ csrf }}">
+  <label>Effective from <input type="date" name="effective_ym" required></label>
+  <label>Ceiling (₹) <input type="number" name="amount" min="1" required></label>
+  <button class="primary">Save ceiling</button>
+</form>
+</section>
+{% endblock %}

@@ -1,0 +1,254 @@
+{% extends "base.html" %}{% block title %}{{ er.name }}{% if wm %} — {{ wm.label }}{% endif %}{% endblock %}
+{% block body %}
+<div class="head">
+  <div>
+    <h1>{{ er.name }}</h1>
+    <p class="muted">{% if er.est_code %}EPF {{ er.est_code }}{% endif %}{% if er.esic_code %}{% if er.est_code %}, {% endif %}ESIC {{ er.esic_code }}{% endif %}</p>
+  </div>
+  <div class="actions">
+    <a class="btn" href="{{ url_for('employees', eid=er.id) }}">Employees</a>
+    <details class="inline"><summary class="btn">Import salary Excel</summary>
+      <form method="post" enctype="multipart/form-data" action="{{ url_for('import_month', eid=er.id) }}" class="popover">
+        <input type="hidden" name="csrf" value="{{ csrf }}">
+        <p class="muted">Upload the monthly salary statement in the usual 3-sheet format. The month is read from cell A1.</p>
+        <input type="file" name="file" accept=".xlsx" required>
+        <button class="primary">Import</button>
+      </form>
+    </details>
+  </div>
+</div>
+
+<!-- month timeline: bar height = headcount, colour = status -->
+<nav class="timeline" aria-label="Wage months">
+  {% for t in tl %}
+    {% set first = loop.first or t.m == 1 %}
+    {% if t.wm %}
+      <a class="tm {{ t.wm.status }}{{ ' sel' if wm and wm.id == t.wm.id }}" href="{{ url_for('months', eid=er.id, m=t.wm.id) }}"
+         aria-current="{{ 'page' if wm and wm.id == t.wm.id else 'false' }}"
+         title="{{ t.wm.label }}: {{ t.count }} employees, {{ {'draft':'being filled','submitted':'sent to EPF office','generated':'ECR prepared'}[t.wm.status] }}">
+        <span class="cnt">{{ t.count }}</span>
+        <span class="col" style="--h: {{ t.h }}%"></span>
+        <span class="mo">{{ t.label }}{% if first %}<em>{{ t.y }}</em>{% endif %}</span>
+      </a>
+    {% else %}
+      <form method="post" action="{{ url_for('new_month', eid=er.id) }}" class="tm empty-m">
+        <input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="y" value="{{ t.y }}"><input type="hidden" name="m" value="{{ t.m }}">
+        <button title="Open {{ t.label }}-{{ t.y }} for wage entry"><span class="cnt">+</span><span class="col"></span><span class="mo">{{ t.label }}{% if first %}<em>{{ t.y }}</em>{% endif %}</span></button>
+      </form>
+    {% endif %}
+  {% endfor %}
+</nav>
+<script>(t=>{const s=t.querySelector('.sel')||t.lastElementChild;t.scrollLeft=s.offsetLeft-t.clientWidth+s.offsetWidth+40;})(document.querySelector('.timeline'))</script>
+<p class="legend"><i class="draft"></i> Being filled <i class="submitted"></i> Sent to EPF office <i class="generated"></i> ECR prepared <i class="none"></i> Not opened — click to open</p>
+
+{% if not wm %}
+  <p class="empty">Pick a month above. A grey month opens with every working employee and last month's pay figures already filled in.</p>
+{% else %}
+<section class="monthhead">
+  <div>
+    <h2>{{ wm.label }}</h2>
+    <p class="muted">{{ rows|length }} employees · EPS/EDLI ceiling {{ ceil_note }}
+      {% if wm.status == 'draft' %}· Being filled{% elif wm.status == 'submitted' %}· Sent {{ wm.submitted_at.strftime('%d/%m/%Y') }}{% else %}· ECR prepared {{ wm.generated_at.strftime('%d/%m/%Y %H:%M') }}{% endif %}</p>
+  </div>
+  <div class="actions">
+    <a class="btn" href="{{ url_for('download_register', eid=er.id, mid=wm.id) }}">Wage register (Excel)</a>
+    {% if esic_count %}
+    <a class="btn" id="esicbtn" href="{{ url_for('download_esic', eid=er.id, mid=wm.id) }}" title="ESIC monthly contribution file for {{ esic_count }} insured persons, in ESIC's MC template">ESIC MC file (.xls)</a>
+    {% endif %}
+    {% if me.role == 'admin' %}
+      <a class="btn primary" id="genbtn" href="{{ url_for('download_ecr', eid=er.id, mid=wm.id) }}"{% if pending %} onclick="return confirm('{{ pending }} employee(s) are not entered yet. Generate the ECR anyway?')"{% endif %}>Generate ECR</a>
+      {% if wm.status != 'draft' %}
+      <form method="post" action="{{ url_for('month_status', eid=er.id, mid=wm.id) }}"><input type="hidden" name="csrf" value="{{ csrf }}"><button name="action" value="reopen">Reopen for employer</button></form>
+      {% endif %}
+    {% elif wm.status == 'draft' %}
+      <form method="post" action="{{ url_for('month_status', eid=er.id, mid=wm.id) }}" onsubmit="return confirm('Send {{ wm.label }} to the EPF office? You won\'t be able to edit it afterwards.')"><input type="hidden" name="csrf" value="{{ csrf }}"><button class="primary" name="action" value="submit">Send to EPF office</button></form>
+    {% endif %}
+  </div>
+</section>
+
+<div class="progress" aria-live="polite">
+  <div class="track"><span id="progbar" style="width: {{ ((rows|length - pending) / (rows|length or 1) * 100)|round }}%"></span></div>
+  <span id="progtxt">{{ rows|length - pending }} of {{ rows|length }} employees entered</span>
+  {% if editable %}
+  <label class="daysall">Total days for everyone
+    <input type="number" id="daysall" min="1" max="31" value="{{ entries[0].total_days if entries else 30 }}">
+    <button type="button" id="daysbtn">Apply</button>
+  </label>
+  {% endif %}
+</div>
+
+{% if not editable %}
+<div class="locked" role="status">
+  <strong>{{ wm.label }} is locked — wages can't be changed.</strong>
+  It was {{ 'sent to the EPF office' if wm.status == 'submitted' else 'used to prepare the ECR' }}.
+  To enter wages for a new month, click a grey month on the timeline above. To correct {{ wm.label }}, ask the EPF office to reopen it.
+</div>
+{% endif %}
+<div class="entry" id="entry"
+     data-base="{{ url_for('months', eid=er.id) }}" data-save="{{ url_for('save_entry', eid=er.id, mid=wm.id, entry_id=0) }}"
+     data-new="{{ url_for('month_new_employee', eid=er.id, mid=wm.id) }}" data-days="{{ url_for('month_days', eid=er.id, mid=wm.id) }}"
+     data-year="{{ wm.year }}" data-month="{{ wm.month }}" data-ceiling="{{ ceil }}" data-editable="{{ 1 if editable else 0 }}"
+     data-label="{{ wm.label }}" data-lwd-codes="{{ esic_lwd_codes|join(',') }}">
+
+  <aside class="people">
+    <input type="search" id="find" placeholder="Find employee" aria-label="Find employee">
+    <ol id="plist"></ol>
+    {% if editable %}<button type="button" class="addnew" id="addnew">+ New employee</button>{% endif %}
+  </aside>
+
+  <section class="panel" id="panel">
+    <!-- wage form for the selected employee -->
+    <form id="wform" autocomplete="off">
+      <header class="phead">
+        <div>
+          <p class="pos" id="pos"></p>
+          <h3 id="pname"></h3>
+          <p class="muted" id="pids"></p>
+          <div class="flags" id="pflags"></div>
+        </div>
+        <span class="state" id="pstate"></span>
+      </header>
+
+      <fieldset class="inputs" {{ '' if editable else 'disabled' }}>
+        <legend>Wages for {{ wm.label }}</legend>
+        <label>Actual basic pay <input type="number" name="actual_basic" min="0" inputmode="numeric"></label>
+        <label>Total days <input type="number" name="total_days" min="1" max="31" inputmode="numeric"></label>
+        <label>LOP days <input type="number" name="lop_days" min="0" max="31" inputmode="numeric"></label>
+        <label>House rent <input type="number" name="hra" min="0" inputmode="numeric"></label>
+        <label>Laundry allowance <input type="number" name="laundry" min="0" inputmode="numeric"></label>
+      </fieldset>
+
+      <div class="calc">
+        <div class="col">
+          <h4>Earnings</h4>
+          <dl>
+            <dt>Paid days</dt><dd data-k="paid_days"></dd>
+            <dt>Basic pay</dt><dd data-k="basic"></dd>
+            <dt>Conveyance</dt><dd data-k="conveyance"></dd>
+            <dt>House rent</dt><dd data-k="hra"></dd>
+            <dt>Laundry</dt><dd data-k="laundry"></dd>
+            <dt class="sum">Gross</dt><dd class="sum" data-k="gross"></dd>
+          </dl>
+        </div>
+        <div class="col">
+          <h4>Deductions</h4>
+          <dl>
+            <dt>EPF 12%</dt><dd data-k="epf_ee"></dd>
+            <dt>ESIC 0.75%</dt><dd data-k="esic_ee"></dd>
+            <dt class="sum">Total</dt><dd class="sum" data-k="ded"></dd>
+          </dl>
+          <div class="net"><span>Net pay</span><strong data-k="net"></strong></div>
+        </div>
+        <div class="col epfcol">
+          <h4>For ECR and ESIC</h4>
+          <dl>
+            <dt>EPF wages</dt><dd data-k="epf_wages"></dd>
+            <dt>EPS wages</dt><dd data-k="eps_wages"></dd>
+            <dt>EDLI wages</dt><dd data-k="edli_wages"></dd>
+            <dt>EPS 8.33%</dt><dd data-k="eps_er"></dd>
+            <dt>ER share 3.67%</dt><dd data-k="epf_er_diff"></dd>
+            <dt>NCP days</dt><dd data-k="ncp"></dd>
+            <dt>ESIC wages</dt><dd data-k="esic_wages"></dd>
+            <dt>ESIC employer 3.25%</dt><dd data-k="esic_er"></dd>
+          </dl>
+        </div>
+      </div>
+
+      <div class="esicbox" id="esicbox" hidden>
+        <h4>ESIC — no wages this month</h4>
+        <p class="muted">ESIC needs a reason when an insured person has 0 paid days.</p>
+        <fieldset class="inputs" {{ '' if editable else 'disabled' }}>
+          <label>Reason
+            <select name="esic_reason">{% for code, label in esic_reasons %}<option value="{{ code }}">{{ code }} – {{ label }}</option>{% endfor %}</select>
+          </label>
+          <label id="lwdlabel">Last working day <input type="date" name="esic_lwd"></label>
+        </fieldset>
+      </div>
+
+      <details class="who" id="who">
+        <summary>Employee details — name, UAN, ESIC IP, date of birth</summary>
+        <fieldset class="inputs" {{ '' if editable else 'disabled' }}>
+          <label class="wide">Name <input name="name"></label>
+          <label>UAN <input name="uan" inputmode="numeric" maxlength="12" placeholder="12 digits"></label>
+          <label>ESIC IP number <input name="ip_no" inputmode="numeric" maxlength="10" placeholder="10 digits"></label>
+          <label>Date of birth <input type="date" name="dob"></label>
+        </fieldset>
+      </details>
+
+      <p class="err" id="perr" role="alert"></p>
+      {% if editable %}
+      <div class="pbtns">
+        <button type="submit" class="primary" id="savenext">Save and next</button>
+        <button type="button" id="saveonly">Save</button>
+        <button type="button" class="link" id="prev">Previous employee</button>
+        <span class="hint">Enter moves to the next box · Ctrl+Enter saves</span>
+      </div>
+      {% endif %}
+    </form>
+
+    <!-- new employee -->
+    <form id="nform" hidden autocomplete="off">
+      <header class="phead"><div><h3>New employee</h3><p class="muted">Adds them to the employee list and to {{ wm.label }}. Wages are entered next.</p></div></header>
+      <fieldset class="inputs">
+        <label class="wide">Name <input name="name" required></label>
+        <label>UAN <input name="uan" inputmode="numeric" maxlength="12" placeholder="12 digits"></label>
+        <label>ESIC IP number <input name="ip_no" inputmode="numeric" maxlength="10" placeholder="10 digits"></label>
+        <label>Date of birth <input type="date" name="dob"></label>
+      </fieldset>
+      <p class="err" id="nerr" role="alert"></p>
+      <div class="pbtns"><button class="primary">Add and enter wages</button><button type="button" class="link" id="ncancel">Cancel</button></div>
+    </form>
+  </section>
+</div>
+
+<h3 class="alltitle">All employees in {{ wm.label }}</h3>
+<div class="tablewrap">
+<table class="grid ro" id="summary">
+  <thead>
+    <tr>
+      <th>Sl</th><th class="name">Name</th>
+      <th>Actual basic</th><th>Days</th><th>LOP</th><th>Paid days</th><th>Basic</th><th>Conveyance</th><th>House rent</th><th>Laundry</th><th>Gross</th>
+      <th>EPF 12%</th><th>ESIC 0.75%</th><th>Net pay</th>
+      <th class="epf">EPS wages</th><th class="epf">EPS 8.33%</th><th class="epf">ER 3.67%</th>
+    </tr>
+  </thead>
+  <tbody></tbody>
+  <tfoot><tr></tr></tfoot>
+</table>
+</div>
+
+{% if editable and addable %}
+<form method="post" action="{{ url_for('month_rows', eid=er.id, mid=wm.id) }}" class="row addold">
+  <input type="hidden" name="csrf" value="{{ csrf }}">
+  <label>Employee on the list but not in {{ wm.label }}
+    <select name="add">{% for a in addable %}<option value="{{ a.id }}">{{ a.name }}</option>{% endfor %}</select></label>
+  <button>Add to {{ wm.label }}</button>
+</form>
+{% endif %}
+{% if editable %}
+<form method="post" action="{{ url_for('month_rows', eid=er.id, mid=wm.id) }}" id="rmform" hidden>
+  <input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="remove" id="rmid">
+</form>
+{% endif %}
+{% if wm.status == 'draft' and editable %}
+<form method="post" action="{{ url_for('month_status', eid=er.id, mid=wm.id) }}" onsubmit="return confirm('Delete {{ wm.label }} and all its entries?')" class="delmonth"><input type="hidden" name="csrf" value="{{ csrf }}"><button class="link danger" name="action" value="delete">Delete {{ wm.label }}</button></form>
+{% endif %}
+
+<script id="entries-data" type="application/json">{{ entries_json|tojson }}</script>
+{% if me.role == 'admin' %}
+<section class="challan">
+  <h3>Challan estimate</h3>
+  <p class="muted">Indicative only — the ECR portal computes the final challan. {{ challan.members }} members, EPF wages ₹{{ "{:,}".format(challan.epf_wages) }}.</p>
+  <dl>
+    <div><dt>A/c 1 (EE + ER)</dt><dd>₹{{ "{:,}".format(challan.ac1) }}</dd></div>
+    <div><dt>A/c 2 admin</dt><dd>₹{{ "{:,}".format(challan.ac2) }}</dd></div>
+    <div><dt>A/c 10 EPS</dt><dd>₹{{ "{:,}".format(challan.ac10) }}</dd></div>
+    <div><dt>A/c 21 EDLI</dt><dd>₹{{ "{:,}".format(challan.ac21) }}</dd></div>
+    <div class="tot"><dt>Total</dt><dd>₹{{ "{:,}".format(challan.total) }}</dd></div>
+    <div><dt>ESIC (EE + ER)</dt><dd>₹{{ "{:,}".format(totals.esic_ee + totals.esic_er) }}</dd></div>
+  </dl>
+</section>
+{% endif %}
+<script src="{{ asset('entry.js') }}"></script>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,12 @@
+{% extends "base.html" %}{% block title %}Sign in{% endblock %}
+{% block body %}
+<section class="narrow">
+  <h1>Sign in</h1>
+  <p class="muted">Employers enter monthly wages here. The EPF office prepares the ECR from the same data.</p>
+  <form method="post" class="stack">
+    <label>Username <input name="username" autocomplete="username" required autofocus></label>
+    <label>Password <input name="password" type="password" autocomplete="current-password" required></label>
+    <button class="primary">Sign in</button>
+  </form>
+</section>
+{% endblock %}

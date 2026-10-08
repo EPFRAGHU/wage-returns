@@ -1,0 +1,75 @@
+{% extends "base.html" %}{% block title %}Employees — {{ er.name }}{% endblock %}
+{% block body %}
+<div class="head">
+  <div>
+    <h1>{{ er.name }}</h1>
+    <p class="muted">Employee master. Date of birth decides who stops EPS at 58.</p>
+  </div>
+  <a class="btn" href="{{ url_for('months', eid=er.id) }}">Back to months</a>
+</div>
+
+{% set missing = emps|selectattr('active')|rejectattr('dob')|list %}
+{% if missing %}<p class="warn">{{ missing|length }} active employee{{ 's' if missing|length > 1 }} have no date of birth. Add it so EPS is stopped correctly at 58.</p>{% endif %}
+
+<div class="tablewrap">
+<table class="list">
+  <thead><tr><th>Name</th><th>UAN</th><th>ESIC IP</th><th>Date of birth</th><th class="num">Age</th><th class="num">Actual basic</th><th class="num">House rent</th><th class="num">Laundry</th><th></th></tr></thead>
+  <tbody>
+  {% for e in emps %}
+  <tr class="{{ '' if e.active else 'off' }}">
+    <td><strong>{{ e.name }}</strong>{% if not e.active %} <span class="pill">Left</span>{% endif %}</td>
+    <td>{{ e.uan or '—' }}</td>
+    <td>{{ e.ip_no or '—' }}</td>
+    <td>{% if e.dob %}{{ e.dob.strftime('%d/%m/%Y') }}{% else %}<span class="flag nodob">Missing</span>{% endif %}</td>
+    <td class="num">{% if ages[e.id] is not none %}{{ ages[e.id] }}{% if ages[e.id] >= 58 %} <span class="flag over58">No EPS</span>{% endif %}{% endif %}</td>
+    <td class="num">{{ e.actual_basic }}</td><td class="num">{{ e.hra }}</td><td class="num">{{ e.laundry }}</td>
+    <td class="right"><button type="button" class="link" data-edit='{{ {"id": e.id, "name": e.name, "uan": e.uan or "", "ip_no": e.ip_no or "", "dob": e.dob.isoformat() if e.dob else "", "doj": e.doj.isoformat() if e.doj else "", "actual_basic": e.actual_basic, "hra": e.hra, "laundry": e.laundry, "active": e.active}|tojson }}'>Edit</button></td>
+  </tr>
+  {% else %}
+  <tr><td colspan="9" class="empty">No employees yet. Add one below or import the employee Excel.</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+</div>
+
+<div class="two">
+<section>
+  <h2 id="formtitle">Add employee</h2>
+  <form method="post" class="grid-form" id="empform">
+    <input type="hidden" name="csrf" value="{{ csrf }}">
+    <input type="hidden" name="id">
+    <label class="wide">Name <input name="name" required></label>
+    <label>UAN <input name="uan" inputmode="numeric" maxlength="12" pattern="\d{12}"></label>
+    <label>ESIC IP number <input name="ip_no" inputmode="numeric" maxlength="10" pattern="\d{10}"></label>
+    <label>Date of birth <input type="date" name="dob"></label>
+    <label>Date of joining <input type="date" name="doj"></label>
+    <label>Actual basic pay <input type="number" name="actual_basic" min="0" value="0"></label>
+    <label>House rent <input type="number" name="hra" min="0" value="0"></label>
+    <label>Laundry allowance <input type="number" name="laundry" min="0" value="0"></label>
+    <label class="check"><input type="checkbox" name="active" value="1" checked> Working this month</label>
+    <div><button class="primary">Save employee</button> <button type="reset" class="link" id="cancel" hidden>Cancel edit</button></div>
+  </form>
+</section>
+<section>
+  <h2>Import from Excel</h2>
+  <p class="muted">Download the template, fill the date of birth column, and upload it back. Rows are matched by UAN, then by name.</p>
+  <p><a class="btn" href="{{ url_for('employee_template', eid=er.id) }}">Download employee template</a></p>
+  <form method="post" enctype="multipart/form-data" action="{{ url_for('import_employees', eid=er.id) }}" class="row">
+    <input type="hidden" name="csrf" value="{{ csrf }}">
+    <input type="file" name="file" accept=".xlsx" required>
+    <button>Import employees</button>
+  </form>
+</section>
+</div>
+<script>
+const f = document.getElementById('empform');
+document.querySelectorAll('[data-edit]').forEach(b => b.onclick = () => {
+  const d = JSON.parse(b.dataset.edit);
+  for (const k in d) { if (f.elements[k]) { if (k === 'active') f.elements[k].checked = d[k]; else f.elements[k].value = d[k]; } }
+  document.getElementById('formtitle').textContent = 'Edit ' + d.name;
+  document.getElementById('cancel').hidden = false;
+  f.scrollIntoView({behavior: 'smooth'});
+});
+f.addEventListener('reset', () => { f.elements.id.value=''; document.getElementById('formtitle').textContent='Add employee'; document.getElementById('cancel').hidden=true; });
+</script>
+{% endblock %}

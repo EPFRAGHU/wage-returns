@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{% block title %}Wage returns{% endblock %}</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;600;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="{{ asset('style.css') }}">
+<meta name="csrf" content="{{ csrf }}">
+</head>
+<body>
+<header class="bar">
+  <a class="brand" href="{{ url_for('home') }}">Wage returns</a>
+  {% if me %}
+  <nav>
+    {% if me.role == 'admin' %}
+      <a href="{{ url_for('admin_home') }}">Employers</a>
+      <a href="{{ url_for('admin_settings') }}">Wage ceiling</a>
+    {% else %}
+      <a href="{{ url_for('months', eid=me.employer_id) }}">Months</a>
+      <a href="{{ url_for('employees', eid=me.employer_id) }}">Employees</a>
+    {% endif %}
+    <a href="{{ url_for('change_password') }}">Password</a>
+    <a href="{{ url_for('logout') }}">Sign out</a>
+  </nav>
+  {% endif %}
+</header>
+<main>
+  {% with msgs = get_flashed_messages() %}{% for m in msgs %}<p class="flash">{{ m }}</p>{% endfor %}{% endwith %}
+  {% block body %}{% endblock %}
+</main>
+</body>
+</html>
