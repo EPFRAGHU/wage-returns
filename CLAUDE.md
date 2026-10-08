@@ -12,7 +12,7 @@ client's monthly 3-sheet salary Excel (salary statement / UAN list / IP list).
 - `static/style.css`, `static/entry.js` — no build step. Static URLs are cache-busted with `asset()` (file mtime).
 - `esic_template/MC_Template11.xls` — ESIC's official MC template, filled via xlrd + xlutils.copy (keeps the instructions sheet and formatting).
 - `seed.py` — creates an employer login and imports one month from the client's salary workbook.
-- DB: SQLite `data/wages.db` by default; `DATABASE_URL` for Postgres. Docker/gunicorn on port 8000 for Coolify.
+- DB: SQLite `data/wages.db` by default; `DATABASE_URL` for Postgres (any of `postgres://`, `postgresql://`, `postgresql+psycopg://`, `postgresql+psycopg2://` — all rewritten to psycopg2). Docker/gunicorn on port 8000 for Coolify, with `--preload` so `init_db()` runs once before workers fork (pool is disposed after it). Coolify: Dockerfile build pack, persistent volume at `/app/data` when using SQLite; healthcheck curls `/login`.
 
 ## Run
     pip install -r requirements.txt

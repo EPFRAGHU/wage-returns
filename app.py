@@ -17,8 +17,11 @@ import calc
 app = Flask(__name__)
 app.config["SECRET_KEY"] = os.environ.get("SECRET_KEY", "change-me-in-production")
 db_url = os.environ.get("DATABASE_URL", "sqlite:///" + os.path.join(os.path.dirname(os.path.abspath(__file__)), "data", "wages.db"))
-if db_url.startswith("postgres://"):
-    db_url = db_url.replace("postgres://", "postgresql://", 1)
+# accept postgres://, postgresql://, postgresql+psycopg:// and postgresql+psycopg2://; always use psycopg2
+for prefix in ("postgresql+psycopg2://", "postgresql+psycopg://", "postgresql://", "postgres://"):
+    if db_url.startswith(prefix):
+        db_url = "postgresql+psycopg2://" + db_url[len(prefix):]
+        break
 app.config["SQLALCHEMY_DATABASE_URI"] = db_url
 app.config["SQLALCHEMY_ENGINE_OPTIONS"] = {"pool_pre_ping": True}
 os.makedirs(os.path.join(os.path.dirname(os.path.abspath(__file__)), "data"), exist_ok=True)
@@ -942,6 +945,7 @@ def init_db():
 
 with app.app_context():
     init_db()
+    db.engine.dispose()  # gunicorn --preload forks after this; workers must not share pooled connections
 
 if __name__ == "__main__":
     app.run(debug=True, port=5000)
