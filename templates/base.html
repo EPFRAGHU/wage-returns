@@ -21,6 +21,7 @@
     {% else %}
       <a href="{{ url_for('months', eid=me.employer_id) }}">Months</a>
       <a href="{{ url_for('employees', eid=me.employer_id) }}">Employees</a>
+      <a href="{{ url_for('reports', eid=me.employer_id) }}">Reports</a>
     {% endif %}
     <a href="{{ url_for('change_password') }}">Password</a>
     <a href="{{ url_for('logout') }}">Sign out</a>

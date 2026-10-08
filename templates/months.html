@@ -7,6 +7,7 @@
   </div>
   <div class="actions">
     <a class="btn" href="{{ url_for('employees', eid=er.id) }}">Employees</a>
+    <a class="btn" href="{{ url_for('reports', eid=er.id) }}">Reports</a>
     <details class="inline"><summary class="btn">Import salary Excel</summary>
       <form method="post" enctype="multipart/form-data" action="{{ url_for('import_month', eid=er.id) }}" class="popover">
         <input type="hidden" name="csrf" value="{{ csrf }}">

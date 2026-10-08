@@ -718,6 +718,170 @@ def download_register(eid, mid):
                      mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
 
 
+# ───────────────────────── reports ─────────────────────────
+# heading key → (label, value from a computed calc.Row, added up in totals)
+REPORT_COLS = {
+    "uan": ("UAN", lambda r: r.uan or "", False),
+    "ip_no": ("ESIC IP", lambda r: r.ip_no or "", False),
+    "dob": ("Date of birth", lambda r: r.dob.strftime("%d/%m/%Y") if r.dob else "", False),
+    "actual_basic": ("Actual basic", lambda r: r.actual_basic, True),
+    "total_days": ("Total days", lambda r: r.total_days, True),
+    "lop_days": ("LOP days", lambda r: r.total_days - r.paid_days, True),
+    "paid_days": ("Paid days", lambda r: r.paid_days, True),
+    "basic": ("Basic", lambda r: r.basic, True),
+    "conveyance": ("Conveyance", lambda r: r.conveyance, True),
+    "hra": ("House rent", lambda r: r.hra, True),
+    "laundry": ("Laundry", lambda r: r.laundry, True),
+    "gross": ("Gross", lambda r: r.gross, True),
+    "epf_wages": ("EPF wages", lambda r: r.epf_wages, True),
+    "eps_wages": ("EPS wages", lambda r: r.eps_wages, True),
+    "edli_wages": ("EDLI wages", lambda r: r.edli_wages, True),
+    "epf_ee": ("EPF EE 12%", lambda r: r.epf_ee, True),
+    "eps_er": ("EPS 8.33%", lambda r: r.eps_er, True),
+    "epf_er_diff": ("EPF ER 3.67%", lambda r: r.epf_er_diff, True),
+    "epf_total": ("EPF total", lambda r: r.epf_ee + r.eps_er + r.epf_er_diff, True),
+    "ncp": ("NCP days", lambda r: r.total_days - r.paid_days, True),
+    "age": ("Age note", lambda r: {"over58": "58+ no EPS", "turns58": "Turns 58", "nodob": "DOB missing"}.get(r.age_flag, ""), False),
+    "esic_wages": ("ESIC wages", lambda r: r.esic_wages, True),
+    "esic_ee": ("ESIC EE 0.75%", lambda r: r.esic_ee, True),
+    "esic_er": ("ESIC ER 3.25%", lambda r: r.esic_er, True),
+    "esic_total": ("ESIC total", lambda r: r.esic_ee + r.esic_er, True),
+    "deduction": ("Total deduction", lambda r: r.epf_ee + r.esic_ee, True),
+    "net": ("Net pay", lambda r: r.net, True),
+}
+# heading set → (label, columns, only employees having this field)
+REPORT_VIEWS = {
+    "all": ("All headings", ["uan", "ip_no", "actual_basic", "total_days", "lop_days", "paid_days", "basic", "conveyance",
+                             "hra", "laundry", "gross", "epf_wages", "eps_wages", "edli_wages", "epf_ee", "eps_er",
+                             "epf_er_diff", "esic_wages", "esic_ee", "esic_er", "deduction", "net"], None),
+    "salary": ("Salary", ["actual_basic", "total_days", "lop_days", "paid_days", "basic", "conveyance", "hra", "laundry",
+                          "gross", "epf_ee", "esic_ee", "deduction", "net"], None),
+    "epf": ("EPF", ["uan", "gross", "epf_wages", "eps_wages", "edli_wages", "epf_ee", "eps_er", "epf_er_diff",
+                    "epf_total", "ncp", "age"], "uan"),
+    "esic": ("ESIC", ["ip_no", "paid_days", "esic_wages", "esic_ee", "esic_er", "esic_total"], "ip_no"),
+    "custom": ("Choose headings", [], None),
+}
+REPORT_GROUPS = {"month": "Each employee, month by month", "employee": "Each employee, one after another",
+                 "emp_total": "Total per employee", "month_total": "Total per month"}
+
+
+def build_report(eid, args):
+    """Report rows from the same calc.compute figures as the month screen, ECR and ESIC files."""
+    wms = WageMonth.query.filter_by(employer_id=eid).order_by(WageMonth.year, WageMonth.month).all()
+    staff = Employee.query.filter_by(employer_id=eid).order_by(Employee.name).all()
+    view = args.get("view") if args.get("view") in REPORT_VIEWS else "all"
+    group = args.get("group") if args.get("group") in REPORT_GROUPS else "month"
+    keys = [k for k in REPORT_COLS if k in args.getlist("c")] if view == "custom" else REPORT_VIEWS[view][1]
+    if not keys:
+        view, keys = "all", REPORT_VIEWS["all"][1]
+    need = REPORT_VIEWS[view][2]
+    yms = [w.ym for w in wms]
+    to = args.get("to") if args.get("to") in yms else (yms[-1] if yms else "")
+    frm = args.get("from") if args.get("from") in yms else to
+    if frm > to:
+        frm, to = to, frm
+    emp_id = args.get("emp", type=int) or 0
+    picked = [w for w in wms if frm <= w.ym <= to]
+
+    data = []  # (wage month, employee id, sort key, computed row)
+    for wm in picked:
+        entries, rows, _ = computed_rows(wm)
+        for e, r in zip(entries, rows):
+            if (emp_id and e.employee_id != emp_id) or (need and not getattr(r, need)):
+                continue
+            data.append((wm, e.employee_id, (e.employee.sort or 0, e.employee_id), r))
+
+    cols = [(k, REPORT_COLS[k][0], REPORT_COLS[k][2]) for k in keys]
+
+    def vals(r):
+        return [REPORT_COLS[k][1](r) for k in keys]
+
+    def add_up(items):
+        return [sum(REPORT_COLS[k][1](d[3]) for d in items) if summed else "" for k, _, summed in cols]
+
+    lines = []  # {"kind": "row" | "sub", "month", "name", "vals"}
+    if group in ("month", "month_total"):
+        many_months = len({d[0].id for d in data}) > 1
+        for wm in picked:
+            items = sorted((d for d in data if d[0].id == wm.id), key=lambda d: d[2])
+            if not items:
+                continue
+            if group == "month_total":
+                lines.append({"kind": "row", "month": wm.label, "name": f"{len(items)} employees", "vals": add_up(items)})
+                continue
+            lines += [{"kind": "row", "month": wm.label, "name": d[3].name, "vals": vals(d[3])} for d in items]
+            if many_months and len(items) > 1:
+                lines.append({"kind": "sub", "month": "", "name": f"Total {wm.label}", "vals": add_up(items)})
+    else:
+        by_emp = {}
+        for d in data:
+            by_emp.setdefault(d[1], []).append(d)
+        for items in sorted(by_emp.values(), key=lambda it: it[-1][3].name):
+            last = items[-1][3]  # latest month: name, UAN, IP as they are now
+            if group == "emp_total":
+                summed_vals, now = add_up(items), vals(last)
+                v = [summed_vals[i] if summed else ("" if k == "age" else now[i]) for i, (k, _, summed) in enumerate(cols)]
+                lines.append({"kind": "row", "month": f"{len(items)} month{'s' if len(items) > 1 else ''}",
+                              "name": last.name, "vals": v})
+                continue
+            lines += [{"kind": "row", "month": d[0].label, "name": d[3].name, "vals": vals(d[3])} for d in items]
+            if len(items) > 1 and len(by_emp) > 1:
+                lines.append({"kind": "sub", "month": "", "name": f"Total {last.name}", "vals": add_up(items)})
+    label = {w.ym: w.label for w in wms}
+    return {"wms": wms, "staff": staff, "view": view, "group": group, "keys": keys, "frm": frm, "to": to,
+            "emp_id": emp_id, "cols": cols, "lines": lines, "total": add_up(data) if data else None,
+            "period": label.get(frm, "") + ("" if frm == to else " to " + label.get(to, "")),
+            "who": next((s.name for s in staff if s.id == emp_id), "All employees"),
+            "count": len({d[1] for d in data})}
+
+
+@app.route("/e/<int:eid>/reports")
+@login_required()
+def reports(eid):
+    er = employer_or_404(eid)
+    rep = build_report(eid, request.args)
+    if request.args.get("format") != "xlsx":
+        return render_template("reports.html", er=er, rep=rep, views=REPORT_VIEWS, groups=REPORT_GROUPS,
+                               all_cols=[(k, v[0]) for k, v in REPORT_COLS.items()])
+    from openpyxl import Workbook
+    from openpyxl.styles import Alignment, Font
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Report"
+    codes = ", ".join(x for x in (er.est_code and f"EPF {er.est_code}", er.esic_code and f"ESIC {er.esic_code}") if x)
+    ws.append([er.name + (f" ({codes})" if codes else "")])
+    ws.append([f"{REPORT_VIEWS[rep['view']][0]} — {rep['period']} — {rep['who']} — {REPORT_GROUPS[rep['group']]}"])
+    ws.append(["Sl", "Month", "Name"] + [label for _, label, _ in rep["cols"]])
+    sl = 0
+    for ln in rep["lines"]:
+        sl += ln["kind"] == "row"
+        ws.append([sl if ln["kind"] == "row" else "", ln["month"], ln["name"]] + ln["vals"])
+        if ln["kind"] == "sub":
+            for c in ws[ws.max_row]:
+                c.font = Font(bold=True)
+    if rep["total"]:
+        ws.append(["", "", "TOTAL"] + rep["total"])
+        for c in ws[ws.max_row]:
+            c.font = Font(bold=True)
+    ws["A1"].font = Font(bold=True, size=12)
+    for c in ws[3]:
+        c.font = Font(bold=True)
+        c.alignment = Alignment(wrap_text=True, vertical="top")
+    for row in ws.iter_rows(min_row=4, min_col=4):
+        for c in row:
+            if isinstance(c.value, int):
+                c.number_format = "#,##0"
+    ws.column_dimensions["B"].width = 12
+    ws.column_dimensions["C"].width = 30
+    ws.freeze_panes = "D4"
+    buf = io.BytesIO()
+    wb.save(buf)
+    buf.seek(0)
+    span = rep["frm"] if rep["frm"] == rep["to"] else f"{rep['frm']}_to_{rep['to']}"
+    return send_file(buf, as_attachment=True, download_name=f"Report_{rep['view']}_{span}.xlsx",
+                     mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+
+
 # ───────────────────────── employees ─────────────────────────
 @app.route("/e/<int:eid>/employees", methods=["GET", "POST"])
 @login_required()

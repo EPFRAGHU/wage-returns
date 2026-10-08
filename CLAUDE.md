@@ -8,7 +8,7 @@ client's monthly 3-sheet salary Excel (salary statement / UAN list / IP list).
 ## Stack and files
 - `app.py` — Flask + Flask-SQLAlchemy: models, auth (session + CSRF token), all routes, Excel import/export, `init_db()` with in-place column migrations (`ALTER TABLE ... ADD COLUMN`) because there is no Alembic.
 - `calc.py` — single source of truth for wage/EPF/ESIC maths and ECR line building. `static/entry.js` mirrors it for live preview; keep both in sync when a formula changes.
-- `templates/` — Jinja: `base`, `login`, `password`, `admin` (employers list), `settings` (wage ceilings), `employees` (master + Excel import/template), `months` (timeline + per-employee entry panel + summary table).
+- `templates/` — Jinja: `base`, `login`, `password`, `admin` (employers list), `settings` (wage ceilings), `employees` (master + Excel import/template), `months` (timeline + per-employee entry panel + summary table), `reports` (report module).
 - `static/style.css`, `static/entry.js` — no build step. Static URLs are cache-busted with `asset()` (file mtime).
 - `esic_template/MC_Template11.xls` — ESIC's official MC template, filled via xlrd + xlutils.copy (keeps the instructions sheet and formatting).
 - `seed.py` — creates an employer login and imports one month from the client's salary workbook.
@@ -25,6 +25,7 @@ client's monthly 3-sheet salary Excel (salary statement / UAN list / IP list).
 - employer: sees only own data. Month timeline (bar height = headcount; amber draft, blue submitted, green ECR generated, grey hatched = not opened, click to open). Opening a month copies active employees with last month's pay, total days from last month (default 30), LOP 0.
 - Per-employee entry panel: actual basic, total days, LOP days, house rent, laundry → everything else computed live. "Save and next" goes to the next not-yet-entered employee. New employee can be created from the month. `WageEntry.entered` tracks progress; "Send to EPF office" is refused while any row is not entered, then the month locks for the employer.
 - Editing after ECR generation flips status back to submitted (regenerate needed).
+- Reports (`/e/<eid>/reports`, employer and admin): filters employee (all/one), from–to month, headings (All, Salary, EPF = UAN holders only, ESIC = IP holders only, Choose headings = any of `REPORT_COLS`), show (each employee month by month with month subtotals / employee by employee with employee subtotals / total per employee / total per month). Same view downloads as .xlsx. Figures come from `computed_rows` (same as the month screen and ECR); draft months are included. Read-only, no DB changes.
 
 ## Calculation rules (match the client's sheet — do not change without asking)
 - paid days = total − LOP; basic = ROUND_HALF_UP(actual_basic / total × paid)

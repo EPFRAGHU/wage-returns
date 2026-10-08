@@ -1,0 +1,73 @@
+{% extends "base.html" %}{% block title %}Reports — {{ er.name }}{% endblock %}
+{% block body %}
+<div class="head">
+  <div>
+    <h1>Reports</h1>
+    <p class="muted">{{ er.name }}{% if er.est_code %} · EPF {{ er.est_code }}{% endif %}{% if er.esic_code %} · ESIC {{ er.esic_code }}{% endif %}</p>
+  </div>
+  <div class="actions">
+    <a class="btn" href="{{ url_for('months', eid=er.id) }}">Back to months</a>
+  </div>
+</div>
+
+{% if not rep.wms %}
+<p class="empty">No wage months yet. Reports appear once a month has been opened.</p>
+{% else %}
+<form method="get" class="repform">
+  <div class="grid-form">
+    <label>Employee
+      <select name="emp">
+        <option value="0">All employees</option>
+        {% for s in rep.staff %}<option value="{{ s.id }}"{{ ' selected' if s.id == rep.emp_id }}>{{ s.name }}{{ '' if s.active else ' (left)' }}</option>{% endfor %}
+      </select></label>
+    <label>From month
+      <select name="from">{% for w in rep.wms %}<option value="{{ w.ym }}"{{ ' selected' if w.ym == rep.frm }}>{{ w.label }}</option>{% endfor %}</select></label>
+    <label>To month
+      <select name="to">{% for w in rep.wms %}<option value="{{ w.ym }}"{{ ' selected' if w.ym == rep.to }}>{{ w.label }}</option>{% endfor %}</select></label>
+    <label>Headings
+      <select name="view" id="repview">{% for k, v in views.items() %}<option value="{{ k }}"{{ ' selected' if k == rep.view }}>{{ v[0] }}</option>{% endfor %}</select></label>
+    <label>Show
+      <select name="group">{% for k, v in groups.items() %}<option value="{{ k }}"{{ ' selected' if k == rep.group }}>{{ v }}</option>{% endfor %}</select></label>
+  </div>
+  <fieldset class="pickcols" id="pickcols"{{ '' if rep.view == 'custom' else ' hidden' }}>
+    <legend>Tick the headings you want</legend>
+    {% for k, label in all_cols %}<label class="check"><input type="checkbox" name="c" value="{{ k }}"{{ ' checked' if rep.view == 'custom' and k in rep.keys }}> {{ label }}</label>{% endfor %}
+  </fieldset>
+  <div class="row">
+    <button class="primary">Show report</button>
+    <button name="format" value="xlsx">Download Excel</button>
+    <span class="quick">Quick:
+      <a href="{{ url_for('reports', eid=er.id, **{'from': rep.wms[-1].ym, 'to': rep.wms[-1].ym}) }}">Latest month</a> ·
+      <a href="{{ url_for('reports', eid=er.id, **{'from': rep.wms[0].ym, 'to': rep.wms[-1].ym}) }}">All months</a> ·
+      <a href="{{ url_for('reports', eid=er.id, group='emp_total', **{'from': rep.wms[0].ym, 'to': rep.wms[-1].ym}) }}">All months, total per employee</a>
+    </span>
+  </div>
+</form>
+
+<h3 class="alltitle">{{ views[rep.view][0] }} · {{ rep.period }} · {{ rep.who }}</h3>
+<p class="muted">{{ groups[rep.group] }} · {{ rep.count }} employee{{ '' if rep.count == 1 else 's' }}{% if rep.view == 'epf' %} with UAN{% elif rep.view == 'esic' %} with ESIC IP{% endif %}. Months still being filled are included.</p>
+{% if rep.lines %}
+<div class="tablewrap">
+<table class="grid report">
+  <thead><tr><th class="sl">Sl</th><th class="mon">Month</th><th class="name">Name</th>{% for k, label, summed in rep.cols %}<th>{{ label }}</th>{% endfor %}</tr></thead>
+  <tbody>
+  {% set ns = namespace(sl=0) %}
+  {% for ln in rep.lines %}
+    {% if ln.kind == 'row' %}{% set ns.sl = ns.sl + 1 %}{% endif %}
+    <tr class="{{ ln.kind }}">
+      <td class="sl">{{ ns.sl if ln.kind == 'row' }}</td><td class="mon">{{ ln.month }}</td><td class="name">{{ ln.name }}</td>
+      {% for v in ln.vals %}<td{{ ' class=neg' if v is number and v < 0 }}>{{ "{:,}".format(v) if v is number else v }}</td>{% endfor %}
+    </tr>
+  {% endfor %}
+  </tbody>
+  <tfoot><tr><td></td><td></td><td class="name">Total</td>{% for v in rep.total %}<td>{{ "{:,}".format(v) if v is number else v }}</td>{% endfor %}</tr></tfoot>
+</table>
+</div>
+{% else %}
+<p class="empty">Nothing to show for these choices.</p>
+{% endif %}
+<script>
+document.getElementById('repview').addEventListener('change', e => { document.getElementById('pickcols').hidden = e.target.value !== 'custom'; });
+</script>
+{% endif %}
+{% endblock %}

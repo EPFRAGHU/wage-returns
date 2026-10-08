@@ -22,6 +22,7 @@
     </td>
     <td class="right">
       <a href="{{ url_for('employees', eid=e.id) }}">Employees</a>
+      <a href="{{ url_for('reports', eid=e.id) }}">Reports</a>
       <details class="inline"><summary>Reset password</summary>
         <form method="post" action="{{ url_for('admin_reset_pw', eid=e.id) }}" class="row">
           <input type="hidden" name="csrf" value="{{ csrf }}">
